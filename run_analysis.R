@@ -8,43 +8,43 @@
 ## 4. Appropriately labels the data set with descriptive variable names. 
 ## 5. From the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
 
-## Descriptive variable names means names based on the action the variable is recording, for example the Jerk of the body on the z axis of the phone
+## Merges the training and the test sets to create one data set.
+testSet <- read.table("UCI HAR Dataset/test/X_test.txt")
+trainSet <- read.table("UCI HAR Dataset/train/X_train.txt")
+labely <- read.table("UCI HAR Dataset/test/y_test.txt")
+labelx <- read.table("UCI HAR Dataset/train/y_train.txt")
 
-## 1
-testSet <- read.table("test/X_test.txt")
-trainSet <- read.table("train/X_train.txt")
-labely <- read.table("test/y_test.txt")
-labelx <- read.table("train/y_train.txt")
+trainSubjects <- read.table("UCI HAR Dataset/train/subject_train.txt") 
+testSubjects <- read.table("UCI HAR Dataset/test/subject_test.txt") 
 
-trainSubjects <- read.table("train/subject_train.txt") 
-testSubjects <- read.table("test/subject_test.txt") 
+finalSet <- rbind(cbind(trainSet,trainSubjects,labelx),cbind(testSet,testSubjects,labely))
 
-allSet <- rbind(cbind(trainSet,trainSubjects,labelx),cbind(testSet,testSubjects,labely))
-
-#Rename columns
-features <- read.table("features.txt")
-featureNames <- as.character(features[,2])
+## Fetching the appropriate feature name 
+featureNames <- read.table("UCI HAR Dataset/features.txt")
+featureNames <- as.character(featureNames[,2])
 featureNames[562] <- "subject"
 featureNames[563] <- "activity"
-colnames(allSet) <- featureNames
+colnames(finalSet) <- featureNames
 
+##Slice DataFrame : Keep only measurements on mean and std
 validFeatures <- grep('.*((mean[^F])|(std)).*', featureNames)
 validFeatures <- c(validFeatures,562,563)
-slicedSet <- allSet[,validFeatures]
+finalSet <- finalSet[,validFeatures]
 
-activityLabels <- read.table("activity_labels.txt")
-slicedSet[["activity"]] <- activityLabels[ match(slicedSet[["activity"]], activityLabels[["V1"]]),'V2']
+## Replace activity ID with descriptive labels
+activityLabels <- read.table("UCI HAR Dataset/activity_labels.txt")
+finalSet[["activity"]] <- activityLabels[ match(finalSet[["activity"]], activityLabels[["V1"]]),'V2']
 
-finalSet <- melt(slicedSet,id=c("subject","activity"))
-finalSet2 <- dcast(finalSet,subject+activity ~ variable, mean)
+## As from answer by course TA on the course FAQ
+## Descriptive variable names means names based on the action the variable is recording, for example the Jerk of the body on the z axis of the phone
 
-for(i in 3:ncol(finalSet2))
+for(i in 1:(ncol(finalSet)-2))
 {
-  cname <- colnames(finalSet2)[i]
+  cname <- colnames(finalSet)[i]
   splits = unlist(strsplit(cname,"-"))
   
   ifelse(splits[2]=="mean()",newName <- "mean of the",
-         ifelse(splits[2]=="std()",newName <- "standart deviation of the",newName <- "SPLIT 2 ERROR"))
+         ifelse(splits[2]=="std()",newName <- "standard deviation of the",newName <- "SPLIT 2 ERROR"))
   
   if(grepl('.*Mag.*', splits[1])){
     newName <- paste(newName,"magnitde of the")
@@ -60,32 +60,22 @@ for(i in 3:ncol(finalSet2))
          ifelse(grepl('.*Body.*', splits[1]),newName <- paste(newName,"based on the body acceleration"),
                 ifelse(grepl('.*Gravity.*', splits[1]),newName <- paste(newName,"based on the gravity acceleration"), newName<-"No Acc")))
   
-  if(is.na(splits[3]))
+  if(!is.na(splits[3]))
     newName <- paste(newName,"on",splits[3],"axis")
-    
-  colnames(finalSet2)[i] <- newName
+  
+  colnames(finalSet)[i] <- newName
 }
 
+## Creating independent tidy data with the average of each variable for each activity and each subject
+tidySet <- melt(finalSet,id=c("subject","activity"))
+tidySet <- dcast(tidySet,subject+activity ~ variable, mean)
 
-##  if(splits[2]=="mean()")
-##  newName <- "mean of the "
-##else if(splits[2]=="std()")
-##    newName <- "standart deviation of the "
-##else
-##    newName <- "SPLIT 2 ERROR"
-
+write.table(tidySet,file="tidySet.txt",row.name=FALSE)
+tidySet
 
 
-##if(substr(splits[1],1,1)=="t")
-##  newName <- paste(newName,"time signals ")
-##else if(substr(splits[1],1,1)=="f")
-##  newName <- paste(newName,"frequency signals ")
-##else
-##  newName <- paste(newName,"FIRST LETTER PROB")
-
-##if(grepl('.*Gyro.*', splits[1])==1)
-##  newName <- paste(newName,"based on the gyrometer reading ")
-##else if(grepl('.*Body.*', splits[1])==1)
-##  newName <- paste(newName,"based on the body acceleration ")
-##else if(grepl('.*Gravity.*', splits[1])==1)
-##  newName <- paste(newName,"based on the gravity acceleration ")
+## Help Code for Generating CodeBook
+## data.frame(min=sapply(tidySet[,-c(1,2)],min),max=sapply(tidySet[,-c(1,2)],max))
+## write.table(data.frame(min=sapply(tidySet[,-c(1,2)],min),max=sapply(tidySet[,-c(1,2)],max)),file="codebook.md",row.name=FALSE)
+  
+  
